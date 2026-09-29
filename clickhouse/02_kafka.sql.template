@@ -1,0 +1,69 @@
+CREATE TABLE IF NOT EXISTS bubblemaps.kafka_shiba_raw
+(
+    raw_payload String
+)
+ENGINE = Kafka
+SETTINGS
+    kafka_broker_list = {kafka_broker:String},
+    kafka_topic_list = {kafka_topic:String},
+    kafka_group_name = {kafka_group:String},
+    kafka_format = 'RawBLOB',
+    kafka_num_consumers = 1,
+    kafka_thread_per_consumer = 1,
+    kafka_handle_error_mode = 'stream';
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS bubblemaps.kafka_shiba_to_transfers
+TO bubblemaps.transfers
+AS
+WITH
+    JSONExtractString(raw_payload, 'unique_id') AS event_id,
+    coalesce(
+        nullIf(JSONExtractString(raw_payload, 'transaction_hash'), ''),
+        nullIf(JSONExtractString(raw_payload, 'transactionHash'), ''),
+        nullIf(JSONExtractString(raw_payload, 'tx_hash'), ''),
+        JSONExtractString(raw_payload, 'hash')
+    ) AS tx_hash,
+    coalesce(
+        nullIf(JSONExtractString(raw_payload, 'from_address'), ''),
+        JSONExtractString(raw_payload, 'from')
+    ) AS sender,
+    coalesce(
+        nullIf(JSONExtractString(raw_payload, 'to_address'), ''),
+        JSONExtractString(raw_payload, 'to')
+    ) AS receiver,
+    coalesce(
+        nullIf(JSONExtractString(raw_payload, 'timestamp'), ''),
+        nullIf(JSONExtractString(raw_payload, 'block_timestamp'), ''),
+        JSONExtractRaw(raw_payload, 'timestamp')
+    ) AS timestamp_text,
+    toUInt64OrZero(replaceAll(timestamp_text, '"', '')) AS unix_timestamp
+SELECT
+    event_id AS unique_id,
+    lower(tx_hash) AS transaction_hash,
+    coalesce(
+        parseDateTime64BestEffortOrNull(timestamp_text, 3, 'UTC'),
+        if(
+            unix_timestamp > 0,
+            toDateTime64(
+                if(
+                    unix_timestamp > 1000000000000,
+                    intDiv(unix_timestamp, 1000),
+                    unix_timestamp
+                ),
+                3,
+                'UTC'
+            ),
+            NULL
+        ),
+        now64(3, 'UTC')
+    ) AS timestamp,
+    lower(sender) AS from_address,
+    lower(receiver) AS to_address,
+    toDecimal256(JSONExtractFloat(raw_payload, 'amount'), 0) AS value_raw,
+    raw_payload,
+    now64(3, 'UTC') AS ingested_at
+FROM bubblemaps.kafka_shiba_raw
+WHERE isValidJSON(raw_payload)
+  AND event_id != ''
+  AND tx_hash != ''
+  AND JSONHas(raw_payload, 'amount');

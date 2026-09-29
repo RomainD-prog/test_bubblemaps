@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: bubblemaps
+spec:
+  selector:
+    app: clickhouse
+  ports:
+    - name: http
+      port: 8123
+    - name: native
+      port: 9000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  namespace: bubblemaps
+spec:
+  serviceName: clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      securityContext:
+        fsGroup: 101
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:25.3-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLICKHOUSE_DB
+              value: bubblemaps
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: admin-password
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+          envFrom:
+            - secretRef:
+                name: kafka-credentials
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: kafka-config
+              mountPath: /etc/clickhouse-server/config.d/kafka.xml
+              subPath: kafka.xml
+              readOnly: true
+      volumes:
+        - name: kafka-config
+          configMap:
+            name: clickhouse-kafka-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi

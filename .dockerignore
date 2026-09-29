@@ -1,0 +1,9 @@
+.deps
+.git
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+api_key*.txt
+terraform
+tests

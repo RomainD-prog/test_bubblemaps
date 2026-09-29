@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clickhouse-bootstrap
+  namespace: bubblemaps
+spec:
+  backoffLimit: 8
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: clickhouse-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: clickhouse/clickhouse-server:25.3-alpine
+          command:
+            - sh
+            - -ec
+            - |
+              until clickhouse-client --host clickhouse --password "$CLICKHOUSE_ADMIN_PASSWORD" --query "SELECT 1"; do
+                sleep 3
+              done
+              clickhouse-client \
+                --host clickhouse \
+                --password "$CLICKHOUSE_ADMIN_PASSWORD" \
+                --param_api_password="$CLICKHOUSE_API_PASSWORD" \
+                --multiquery \
+                < /sql/01_schema.sql
+              escape_sed() {
+                printf '%s' "$1" | sed "s/[&|]/\\\\&/g; s/'/''/g"
+              }
+              sed \
+                -e "s|{kafka_broker:String}|'$(escape_sed "$KAFKA_BOOTSTRAP_SERVERS")'|g" \
+                -e "s|{kafka_topic:String}|'$(escape_sed "$KAFKA_TOPIC")'|g" \
+                -e "s|{kafka_group:String}|'$(escape_sed "$KAFKA_CONSUMER_GROUP")'|g" \
+                /sql/02_kafka.sql.template > /tmp/02_kafka.sql
+              clickhouse-client \
+                --host clickhouse \
+                --password "$CLICKHOUSE_ADMIN_PASSWORD" \
+                --multiquery \
+                < /tmp/02_kafka.sql
+          envFrom:
+            - secretRef:
+                name: clickhouse-credentials
+            - secretRef:
+                name: kafka-credentials
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: sql
+          configMap:
+            name: clickhouse-sql

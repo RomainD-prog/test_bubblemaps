@@ -1,0 +1,1 @@
+"""Bubblemaps SHIBA transfer API."""
