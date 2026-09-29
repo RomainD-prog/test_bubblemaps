@@ -6,7 +6,7 @@ gratuit fournit l'URL publique. ClickHouse consomme directement Kafka avec son
 moteur `Kafka`; une vue matérialisée normalise chaque message.
 
 **URL de démonstration actuelle :**
-[https://rome-symbols-bee-reid.trycloudflare.com](https://rome-symbols-bee-reid.trycloudflare.com)
+[https://involved-tension-brothers-jones.trycloudflare.com](https://involved-tension-brothers-jones.trycloudflare.com)
 ([documentation OpenAPI](https://rome-symbols-bee-reid.trycloudflare.com/docs)).
 
 Le déroulé complet de la visite est disponible dans
