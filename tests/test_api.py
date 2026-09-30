@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.main import app, get_repository
+from app.main import Settings, app, create_client, get_repository
 
 TRANSFER = {
     "unique_id": "97A23779CF9FF7CA",
@@ -61,3 +62,10 @@ def test_overview() -> None:
     assert response.status_code == 200
     assert response.json()["window_hours"] == 48
     assert response.json()["volume_shib"] == "1"
+
+
+def test_clickhouse_client_does_not_share_a_session_between_threads() -> None:
+    with patch("app.main.clickhouse_connect.get_client") as get_client:
+        create_client(Settings())
+
+    assert get_client.call_args.kwargs["autogenerate_session_id"] is False

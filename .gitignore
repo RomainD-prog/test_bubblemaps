@@ -10,8 +10,4 @@ __pycache__/
 *.egg-info/
 build/
 api_key*.txt
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/*.tfvars
 kubeconfig*

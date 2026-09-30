@@ -29,7 +29,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
-exclude = [".deps", ".venv", "terraform/.terraform"]
+exclude = [".deps", ".venv"]
 line-length = 100
 target-version = "py312"
 

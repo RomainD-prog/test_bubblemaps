@@ -12,7 +12,9 @@ SETTINGS
     kafka_thread_per_consumer = 1,
     kafka_handle_error_mode = 'stream';
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS bubblemaps.kafka_shiba_to_transfers
+DROP VIEW IF EXISTS bubblemaps.kafka_shiba_to_transfers;
+
+CREATE MATERIALIZED VIEW bubblemaps.kafka_shiba_to_transfers
 TO bubblemaps.transfers
 AS
 WITH
@@ -36,10 +38,7 @@ WITH
         nullIf(JSONExtractString(raw_payload, 'block_timestamp'), ''),
         JSONExtractRaw(raw_payload, 'timestamp')
     ) AS timestamp_text,
-    toUInt64OrZero(replaceAll(timestamp_text, '"', '')) AS unix_timestamp
-SELECT
-    event_id AS unique_id,
-    lower(tx_hash) AS transaction_hash,
+    toUInt64OrZero(replaceAll(timestamp_text, '"', '')) AS unix_timestamp,
     coalesce(
         parseDateTime64BestEffortOrNull(timestamp_text, 3, 'UTC'),
         if(
@@ -54,16 +53,21 @@ SELECT
                 'UTC'
             ),
             NULL
-        ),
-        now64(3, 'UTC')
-    ) AS timestamp,
+        )
+    ) AS event_timestamp,
+    toDecimal256OrNull(JSONExtractRaw(raw_payload, 'amount'), 0) AS parsed_amount
+SELECT
+    event_id AS unique_id,
+    lower(tx_hash) AS transaction_hash,
+    assumeNotNull(event_timestamp) AS timestamp,
     lower(sender) AS from_address,
     lower(receiver) AS to_address,
-    toDecimal256(JSONExtractFloat(raw_payload, 'amount'), 0) AS value_raw,
+    assumeNotNull(parsed_amount) AS value_raw,
     raw_payload,
     now64(3, 'UTC') AS ingested_at
 FROM bubblemaps.kafka_shiba_raw
 WHERE isValidJSON(raw_payload)
   AND event_id != ''
   AND tx_hash != ''
-  AND JSONHas(raw_payload, 'amount');
+  AND event_timestamp IS NOT NULL
+  AND parsed_amount IS NOT NULL;

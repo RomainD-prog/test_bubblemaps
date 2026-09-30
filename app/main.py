@@ -54,7 +54,7 @@ TRANSFER_COLUMNS = """
     from_address,
     to_address,
     value_raw,
-    value_raw / 1000000000000000000 AS value_shib
+    toDecimal256(value_raw, 18) / 1000000000000000000 AS value_shib
 """
 
 
@@ -106,7 +106,7 @@ class TransferRepository:
                 count() AS transfer_count,
                 uniqCombined64(from_address) AS unique_senders,
                 uniqCombined64(to_address) AS unique_receivers,
-                sum(value_raw) / 1000000000000000000 AS volume_shib,
+                toDecimal256(sum(value_raw), 18) / 1000000000000000000 AS volume_shib,
                 min(timestamp) AS first_transfer_at,
                 max(timestamp) AS last_transfer_at
             FROM transfers
@@ -127,6 +127,7 @@ def create_client(settings: Settings) -> Client:
         username=settings.clickhouse_user,
         password=settings.clickhouse_password,
         secure=settings.clickhouse_secure,
+        autogenerate_session_id=False,
     )
 
 

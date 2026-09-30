@@ -6,8 +6,11 @@ gratuit fournit l'URL publique. ClickHouse consomme directement Kafka avec son
 moteur `Kafka`; une vue matérialisée normalise chaque message.
 
 **URL de démonstration actuelle :**
-[https://involved-tension-brothers-jones.trycloudflare.com](https://involved-tension-brothers-jones.trycloudflare.com)
-([documentation OpenAPI](https://rome-symbols-bee-reid.trycloudflare.com/docs)).
+[https://pastor-images-escape-boc.trycloudflare.com](https://pastor-images-escape-boc.trycloudflare.com)
+([documentation OpenAPI](https://pastor-images-escape-boc.trycloudflare.com/docs)).
+
+Cette URL éphémère est aussi disponible avec `cat .runtime/public-url` et change
+à chaque recréation du Quick Tunnel.
 
 Le déroulé complet de la visite est disponible dans
 [`GUIDE_ENTRETIEN.md`](GUIDE_ENTRETIEN.md).
@@ -29,8 +32,8 @@ flowchart LR
   et la complexité opérationnelle d'un test technique.
 - **Ingestion** : table Kafka ClickHouse en `SASL_SSL/PLAIN`, groupe de
   consommateurs `bubblemaps-<nom>`, puis vue matérialisée.
-- **Stockage** : partition mensuelle, tri par timestamp/identifiant, rétention
-  d'un an et déduplication asynchrone par `ReplacingMergeTree`.
+- **Stockage** : partition mensuelle, tri par `(timestamp, unique_id)`,
+  rétention d'un an et déduplication asynchrone sur cette clé complète.
 - **API** : deux replicas sans état, utilisateur ClickHouse en lecture seule,
   probes Kubernetes et documentation OpenAPI.
 
@@ -44,8 +47,10 @@ flowchart LR
 - `GET /health/live` et `GET /health/ready`.
 - `GET /docs` : Swagger UI.
 
-Les montants JSON sont sérialisés comme chaînes pour ne pas perdre de précision.
-SHIBA utilise 18 décimales.
+Le flux fournit `amount` dans l'unité brute ERC-20, souvent en notation
+scientifique (par exemple `8.59e25`). SHIBA utilise 18 décimales : l'API divise
+donc par `10^18`. ClickHouse analyse directement le texte JSON en `Decimal256`
+et l'API sérialise les décimaux comme chaînes.
 
 ## Déploiement
 
@@ -102,17 +107,17 @@ exit
 kubectl --context k3d-bubblemaps -n bubblemaps get pods,pvc,ingress
 kubectl --context k3d-bubblemaps -n bubblemaps logs statefulset/clickhouse
 kubectl --context k3d-bubblemaps -n bubblemaps exec statefulset/clickhouse -- \
-  clickhouse-client --query \
-  "SELECT count(), min(timestamp), max(timestamp) FROM bubblemaps.transfers"
+  sh -lc 'clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query \
+  "SELECT count(), min(timestamp), max(timestamp) FROM bubblemaps.transfers"'
 ```
 
 Pour observer l'ingestion :
 
 ```bash
 kubectl --context k3d-bubblemaps -n bubblemaps exec statefulset/clickhouse -- \
-  clickhouse-client --query \
-  "SELECT database, table, is_currently_used, last_exception
-   FROM system.kafka_consumers FORMAT Vertical"
+  sh -lc 'clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query \
+  "SELECT database, table, is_currently_used, exceptions.text
+   FROM system.kafka_consumers FORMAT Vertical"'
 ```
 
 ## Développement local
@@ -145,5 +150,7 @@ ruff check .
 - Le parseur tolère plusieurs noms de champs usuels. Une fois le contrat Kafka
   confirmé, il faut figer un schéma (Avro/Protobuf + Schema Registry) et envoyer
   les messages invalides vers une dead-letter queue.
-- Le champ source `amount` est un nombre JSON à virgule flottante. Une chaîne
-  décimale ou un entier éviterait la perte de précision avant l'ingestion.
+- Le producteur écrit `amount` comme nombre JSON en notation scientifique avec
+  un nombre limité de chiffres significatifs. L'ingestion évite tout passage
+  supplémentaire par `Float64`, mais seul un entier ou une chaîne décimale dans
+  le contrat source garantirait la précision on-chain complète.

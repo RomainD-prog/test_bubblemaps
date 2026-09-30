@@ -156,7 +156,7 @@ k -n bubblemaps exec clickhouse-0 -- sh -lc \
       transaction_hash,
       from_address,
       to_address,
-      value_raw / 1000000000000000000 AS value_shib
+      toDecimal256(value_raw, 18) / 1000000000000000000 AS value_shib
     FROM bubblemaps.transfers
     ORDER BY timestamp DESC
     LIMIT 5
@@ -170,9 +170,14 @@ Points à expliquer :
 - La connexion Confluent utilise SASL_SSL ; les identifiants viennent d'un
   Secret Kubernetes injecté dans ClickHouse.
 - `RawBLOB` expose un message Kafka par ligne à la vue matérialisée.
-- La vue matérialisée valide le JSON, normalise les adresses et convertit le
-  montant.
-- `ReplacingMergeTree` apporte une déduplication asynchrone par `unique_id`.
+- Le champ `amount` a été vérifié sur le flux réel : il contient l'unité brute
+  ERC-20, souvent en notation scientifique. La conversion SHIB divise donc par
+  `10^18`.
+- La vue matérialisée lit le texte JSON directement en `Decimal256`, sans
+  conversion intermédiaire en `Float64`.
+- `ReplacingMergeTree` déduplique sur la clé de tri complète
+  `(timestamp, unique_id)`, pas sur `unique_id` seul. Les messages sans timestamp
+  valide sont rejetés afin qu'un rejeu conserve une clé déterministe.
 - Le partitionnement mensuel et l'ordre `(timestamp, unique_id)` accélèrent les
   lectures temporelles.
 - Le TTL supprime les événements de plus d'un an.
@@ -288,7 +293,8 @@ k3d rend le déploiement local reproductible.
 
 Le moteur Kafka et la vue matérialisée fournissent une sémantique au moins une
 fois. Un message peut donc être rejoué. `ReplacingMergeTree` converge vers une
-ligne par `unique_id`, mais la déduplication n'est pas instantanée.
+ligne par clé `(timestamp, unique_id)`, mais la déduplication n'est pas
+instantanée.
 
 ### Comment passer à l'échelle ?
 
@@ -305,9 +311,10 @@ ligne par `unique_id`, mais la déduplication n'est pas instantanée.
 - La VM et ClickHouse sont mono-nœud : pas de haute disponibilité.
 - Le Quick Tunnel n'a pas de garantie de disponibilité et son URL change s'il
   est recréé.
-- Le champ Kafka `amount` est déjà encodé comme nombre flottant JSON : une part
-  de précision peut être perdue avant ClickHouse. Le contrat devrait fournir un
-  entier ou une chaîne décimale.
+- Le champ Kafka `amount` est écrit comme nombre JSON en notation scientifique
+  avec un nombre limité de chiffres significatifs. ClickHouse lit directement
+  son texte en `Decimal256`, mais la précision déjà perdue côté producteur est
+  irrécupérable. Le contrat devrait fournir un entier ou une chaîne décimale.
 - Les statistiques agrègent actuellement la table brute.
 - Il manque un Schema Registry et une dead-letter queue pour les messages
   invalides.

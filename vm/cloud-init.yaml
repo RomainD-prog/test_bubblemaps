@@ -1,7 +1,0 @@
-#cloud-config
-package_update: true
-packages:
-  - docker.io
-runcmd:
-  - systemctl enable --now docker
-  - curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 600
