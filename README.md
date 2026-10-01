@@ -6,14 +6,12 @@ gratuit fournit l'URL publique. ClickHouse consomme directement Kafka avec son
 moteur `Kafka`; une vue matérialisée normalise chaque message.
 
 **URL de démonstration actuelle :**
-[https://pastor-images-escape-boc.trycloudflare.com](https://pastor-images-escape-boc.trycloudflare.com)
-([documentation OpenAPI](https://pastor-images-escape-boc.trycloudflare.com/docs)).
+[https://magic-knives-path-restrict.trycloudflare.com](https://magic-knives-path-restrict.trycloudflare.com)
+([documentation OpenAPI](https://magic-knives-path-restrict.trycloudflare.com)).
 
 Cette URL éphémère est aussi disponible avec `cat .runtime/public-url` et change
 à chaque recréation du Quick Tunnel.
 
-Le déroulé complet de la visite est disponible dans
-[`GUIDE_ENTRETIEN.md`](GUIDE_ENTRETIEN.md).
 
 ## Architecture
 
@@ -129,28 +127,3 @@ pip install -e ".[dev]"
 pytest
 ruff check .
 ```
-
-## Limites et passage à l'échelle
-
-- Le cluster et ClickHouse n'ont qu'un nœud : la panne de la VM interrompt
-  l'API et l'ingestion. En production, utiliser plusieurs nœuds Kubernetes,
-  ClickHouse Keeper, des tables répliquées et un stockage sauvegardé.
-- Un seul consommateur Kafka est configuré. On peut augmenter
-  `kafka_num_consumers` jusqu'au nombre de partitions, puis répartir ClickHouse
-  sur plusieurs shards.
-- `ReplacingMergeTree` ne garantit pas une déduplication immédiate. Les requêtes
-  n'utilisent volontairement pas `FINAL`, coûteux à grande échelle. Une table
-  agrégée ou un identifiant d'événement idempotent serait préférable si une
-  exactitude instantanée est requise.
-- Les statistiques lisent les partitions brutes. Des vues matérialisées
-  `AggregatingMergeTree` deviennent nécessaires quand le volume augmente.
-- L'exposition est en HTTP pour garder le test reproductible sans domaine.
-  En production : DNS, cert-manager/TLS, authentification API, rate limiting,
-  NetworkPolicies, External Secrets/Vault et restriction SSH par CIDR.
-- Le parseur tolère plusieurs noms de champs usuels. Une fois le contrat Kafka
-  confirmé, il faut figer un schéma (Avro/Protobuf + Schema Registry) et envoyer
-  les messages invalides vers une dead-letter queue.
-- Le producteur écrit `amount` comme nombre JSON en notation scientifique avec
-  un nombre limité de chiffres significatifs. L'ingestion évite tout passage
-  supplémentaire par `Float64`, mais seul un entier ou une chaîne décimale dans
-  le contrat source garantirait la précision on-chain complète.
