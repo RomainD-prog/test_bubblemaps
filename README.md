@@ -7,7 +7,7 @@ moteur `Kafka`; une vue matérialisée normalise chaque message.
 
 **URL de démonstration actuelle :**
 [https://magic-knives-path-restrict.trycloudflare.com](https://magic-knives-path-restrict.trycloudflare.com)
-([documentation OpenAPI](https://magic-knives-path-restrict.trycloudflare.com)).
+([documentation OpenAPI](https://magic-knives-path-restrict.trycloudflare.com/docs)).
 
 Cette URL éphémère est aussi disponible avec `cat .runtime/public-url` et change
 à chaque recréation du Quick Tunnel.
