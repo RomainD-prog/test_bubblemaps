@@ -83,6 +83,10 @@ spec:
               mountPath: /etc/clickhouse-server/config.d/kafka.xml
               subPath: kafka.xml
               readOnly: true
+            - name: system-logs-config
+              mountPath: /etc/clickhouse-server/config.d/system-logs.xml
+              subPath: system-logs.xml
+              readOnly: true
       volumes:
         - name: kafka-config
           configMap:
