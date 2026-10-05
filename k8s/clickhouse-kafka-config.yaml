@@ -13,3 +13,14 @@ data:
         <sasl_password from_env="KAFKA_API_SECRET"/>
       </kafka>
     </clickhouse>
+  system-logs.xml: |
+    <clickhouse>
+      <!-- Profiler : inutile ici, et c'est lui qui a produit 7 Go -->
+      <trace_log remove="1"/>
+      <!-- Rétention courte sur les journaux internes -->
+      <metric_log><ttl>event_date + INTERVAL 1 DAY DELETE</ttl></metric_log>
+      <asynchronous_metric_log><ttl>event_date + INTERVAL 1 DAY DELETE</ttl></asynchronous_metric_log>
+      <text_log><ttl>event_date + INTERVAL 1 DAY DELETE</ttl></text_log>
+      <part_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></part_log>
+      <query_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></query_log>
+    </clickhouse>
